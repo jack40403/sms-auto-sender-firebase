@@ -1,0 +1,5 @@
+customtkinter
+keyboard
+playwright==1.64.0
+pywin32
+

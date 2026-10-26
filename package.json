@@ -1,0 +1,16 @@
+{
+  "name": "sms-auto-sender-firebase",
+  "private": true,
+  "version": "1.0.0",
+  "description": "一安藥局簡訊自動發送系統：安裝授權、更新閘道與發布腳本",
+  "scripts": {
+    "firebase:emulators": "npm --prefix functions run build && firebase emulators:start --only functions,firestore,storage --project sms-auto-sender-firebase",
+    "firebase:deploy": "firebase deploy --only functions,firestore:rules,storage --project sms-auto-sender-firebase",
+    "publish:update": "python scripts/publish_update.py",
+    "publish:update:dry-run": "python scripts/publish_update.py --dry-run"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.28.1"
+  }
+}
+

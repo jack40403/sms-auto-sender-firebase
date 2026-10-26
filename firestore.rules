@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 授權資料只能由 Cloud Functions 的 Admin SDK 存取。
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

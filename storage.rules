@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 更新檔不提供公開 Firebase SDK 存取，只能透過授權更新閘道取得。
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
