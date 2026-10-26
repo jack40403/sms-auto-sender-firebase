@@ -14,9 +14,11 @@ Windows 桌面程式，從既有 Excel 寄單工作簿讀取勾選名單，經�
 
 專案 ID：`sms-auto-sender-firebase`。本程式不使用 drug price compare 的 Firebase 專案。
 
+此專案已建立 Firestore 與 Storage（`us-central1`），並部署拒絕用戶端直接讀寫的規則。正式授權 API 使用 Cloud Functions；首次部署時需要下列設定，後續更新仍使用同一專案。
+
 1. 在 Firebase 控制台為此專案啟用 Blaze 計費，建立 Firestore 和預設 Storage bucket。後端 Functions 和更新檔儲存需要這些服務。
 2. 在 `functions/.env` 設定 `OWNER_APPROVAL_EMAIL=你的管理者信箱`。此檔案不得提交。
-3. 使用 Firebase CLI 登入，於專案根目錄執行 `npm --prefix functions install`。
+3. 使用 Firebase CLI 登入，於專案根目錄執行 `npm --prefix functions ci`。
 4. 用 `firebase functions:secrets:set SMTP_APP_PASSWORD --project sms-auto-sender-firebase`、`ACTIVATION_HMAC_SECRET`、`ACTIVATION_BRANCH_PASSWORDS` 設定三項密鑰。HMAC 密鑰請用至少 32 個隨機字元；分店密碼採 JSON 物件，鍵為藥局／分店名稱，值為各分店獨有密碼，至少 8 字元。不要把實際值存入 Git。
 5. 執行 `firebase deploy --only functions,firestore:rules,storage --project sms-auto-sender-firebase`。部署後先以測試安裝驗證碼／管理密碼啟用，並從控制台確認 `installations` 紀錄。
 
@@ -36,13 +38,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_installer.ps
 
 ## 發布後續更新
 
-先完成安裝包建置，再以有權存取此 Firebase Storage bucket 的 Google Application Default Credentials 登入並安裝 `requirements-publish.txt`，執行：
+先完成安裝包建置，再安裝 `requirements-publish.txt`。可使用已登入的 Firebase CLI，或具備此 bucket 寫入權限的 Google Application Default Credentials：
 
 ```powershell
 .\.venv313\Scripts\python.exe -m pip install -r requirements-publish.txt
 .\.venv313\Scripts\python.exe .\scripts\publish_update.py --dry-run
-.\.venv313\Scripts\python.exe .\scripts\publish_update.py
+firebase login
+.\.venv313\Scripts\python.exe .\scripts\publish_update.py --auth firebase-cli
 ```
+
+使用 ADC 時省略 `--auth firebase-cli`。若系統 Node 無法執行 Firebase CLI，可在目前的 PowerShell 視窗將 `SMS_NODE_EXE` 設為可用的 `node.exe` 路徑。
 
 發布腳本先驗證版本高於遠端版本、上傳安裝器，再上傳 `manifest.json`；最後讀回 manifest 核對。授權安裝版在程式內點「檢查更新」，會驗證下載檔案的大小及 SHA-256，再由使用者確認安裝。此流程與 GitHub 原始碼發布分開；安裝包不包含工作簿、病患資料或本機授權檔。
 
@@ -50,3 +55,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_installer.ps
 
 請先看 [操作說明.md](操作說明.md)。首次啟動安裝版，輸入藥局／分店名稱後以管理密碼或六位數管理者驗證碼啟用。日常操作維持先以模擬模式核對網頁資料，再考慮正式發送。
 
+本機 `.secret.local` 保存此專案新建立的「一安藥局新泰店」管理密碼；它已從 Git 排除，不隨安裝包發佈。請自行妥善保存，並勿傳給安裝使用者以外的人。

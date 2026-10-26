@@ -6,11 +6,10 @@
   "scripts": {
     "firebase:emulators": "npm --prefix functions run build && firebase emulators:start --only functions,firestore,storage --project sms-auto-sender-firebase",
     "firebase:deploy": "firebase deploy --only functions,firestore:rules,storage --project sms-auto-sender-firebase",
-    "publish:update": "python scripts/publish_update.py",
+    "publish:update": "python scripts/publish_update.py --auth firebase-cli",
     "publish:update:dry-run": "python scripts/publish_update.py --dry-run"
   },
   "devDependencies": {
     "firebase-tools": "^15.28.1"
   }
 }
-

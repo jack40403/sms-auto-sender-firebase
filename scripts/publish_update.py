@@ -1,14 +1,13 @@
-"""Publish a verified installer to the private Firebase Storage update feed.
-
-Requires Google Application Default Credentials with write access to this
-project's Storage bucket. The manifest is uploaded last.
-"""
+"""Publish a verified installer to the private Firebase Storage update feed."""
 
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 from datetime import datetime, timezone
 
@@ -27,9 +26,40 @@ def version_tuple(value):
     return tuple(map(int, value.split(".")))
 
 
+def firebase_cli_credentials():
+    """Use the already signed-in Firebase CLI without persisting an access token."""
+    from google.oauth2.credentials import Credentials
+
+    node = os.environ.get("SMS_NODE_EXE") or shutil.which("node")
+    appdata = os.environ.get("APPDATA", "")
+    firebase_tools = Path(appdata) / "npm" / "node_modules" / "firebase-tools"
+    if not node or not (firebase_tools / "lib" / "apiv2.js").is_file():
+        raise RuntimeError("Firebase CLI global npm installation was not found")
+    script = (
+        "const path=process.argv[1];"
+        "const auth=require(path+'/lib/auth');"
+        "const api=require(path+'/lib/apiv2');"
+        "const account=auth.getGlobalDefaultAccount();"
+        "const refresh=account?.tokens?.refresh_token;"
+        "if(!refresh)process.exit(2);"
+        "api.setRefreshToken(refresh);"
+        "api.getAccessToken().then(token=>process.stdout.write(token)).catch(()=>process.exit(3));"
+    )
+    result = subprocess.run(
+        [node, "-e", script, str(firebase_tools)],
+        capture_output=True,
+        check=False,
+    )
+    token = result.stdout.decode("ascii", errors="ignore").strip()
+    if result.returncode or len(token) < 20:
+        raise RuntimeError("Firebase CLI login could not provide an access token")
+    return Credentials(token=token)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--auth", choices=("adc", "firebase-cli"), default="adc")
     args = parser.parse_args()
     if META["firebaseProjectId"] != "sms-auto-sender-firebase":
         raise RuntimeError("Firebase project ID does not match the dedicated SMS project.")
@@ -39,7 +69,8 @@ def main():
     size = installer.stat().st_size
     if size <= 0 or size > 500 * 1024 * 1024:
         raise ValueError("Installer size is out of range")
-    digest = hashlib.file_digest(installer.open("rb"), "sha256").hexdigest()
+    with installer.open("rb") as handle:
+        digest = hashlib.file_digest(handle, "sha256").hexdigest()
     manifest = {
         "version": VERSION,
         "filename": FILE_NAME,
@@ -53,7 +84,8 @@ def main():
 
     from google.cloud import storage
 
-    client = storage.Client(project=META["firebaseProjectId"])
+    credentials = firebase_cli_credentials() if args.auth == "firebase-cli" else None
+    client = storage.Client(project=META["firebaseProjectId"], credentials=credentials)
     bucket = client.bucket(BUCKET)
     remote_manifest = bucket.blob("releases/manifest.json")
     if remote_manifest.exists(client):
@@ -83,4 +115,3 @@ if __name__ == "__main__":
     except Exception as error:
         print(f"Publication failed: {error}", file=sys.stderr)
         raise SystemExit(1)
-
