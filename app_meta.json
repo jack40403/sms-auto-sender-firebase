@@ -1,7 +1,7 @@
 {
   "name": "sms-auto-sender-firebase",
   "productName": "簡訊自動發送系統",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "firebaseProjectId": "sms-auto-sender-firebase",
   "functionsRegion": "us-central1",
   "storageBucket": "sms-auto-sender-firebase.firebasestorage.app",
