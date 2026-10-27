@@ -147,23 +147,28 @@ class ModernSMSApp(ctk.CTk):
             messagebox.showerror("無法開啟摩叮瀏覽器", reason)
 
     def repair_excel_checkboxes(self):
+        if self.is_running:
+            messagebox.showwarning("執行中", "請先停止寄送任務，再修復核取方塊。")
+            return
         if sms_licensing.PACKAGED and not self.ensure_activation():
             return
         if not messagebox.askyesno(
             "修復 Excel 核取方塊",
-            "程式會先建立備份，再將每個核取方塊連結到隱藏的輔助欄位。\n\n"
-            "這能避免核取方塊位移後抓錯病患。是否繼續？"
+            "程式會先檢查並建立完整備份，再對齊 M 欄、移除可確認的重複方塊並防止拖動。\n\n"
+            "既有位置錨點、連結、勾選狀態與儲存格內容會保留；無法確認對應時會停止。是否繼續？"
         ):
             return
         try:
             result = configure_checkbox_links()
             self.log(
-                f"已修復 {result['count']} 個核取方塊；備份：{result['backup_path']}",
+                f"已對齊 {result['count']} 個核取方塊、移除 {result['removed']} 個重複物件；備份：{result['backup_path']}",
                 "SUCCESS"
             )
             messagebox.showinfo(
                 "修復完成",
-                f"已設定 {result['count']} 個核取方塊並儲存。\n\n備份位置：\n{result['backup_path']}"
+                f"已對齊 {result['count']} 個方塊，移除 {result['removed']} 個重複物件並儲存。\n"
+                "位置防拖動已啟用，儲存格仍可編輯，既有勾選與連結已保留。\n\n"
+                f"備份位置：\n{result['backup_path']}"
             )
         except Exception as exc:
             self.log(f"核取方塊修復未執行：{exc}", "WARN")
@@ -848,4 +853,5 @@ if __name__ == '__main__':
             mb.showerror("啟動錯誤", f"程式啟動時發生錯誤：\n{e}\n\n詳細紀錄已存至應用程式資料夾中的 error.log")
         except Exception:
             pass
+
 
