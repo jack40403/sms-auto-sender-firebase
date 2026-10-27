@@ -12,6 +12,7 @@ import win32ui
 import win32com.client
 import pythoncom
 from datetime import datetime
+from sms_checkbox_repair import repair_checkboxes, resolve_checkbox_row
 
 CONFIG_FILE = (
     os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "SMSAutoSender", "sms_config.json")
@@ -210,16 +211,8 @@ def get_excel_status():
 
 
 def _checkbox_row(cb_obj):
-    """Resolve a checkbox row, preferring its LinkedCell over drawing geometry."""
-    try:
-        linked = str(cb_obj.LinkedCell or '').strip()
-    except Exception:
-        linked = ''
-    if linked:
-        match = re.search(r'\$?([A-Z]+)\$?(\d+)$', linked.upper())
-        if match:
-            return int(match.group(2)), linked
-    return int(cb_obj.TopLeftCell.Row), linked
+    """Resolve persistent M-column anchors before LinkedCell or geometry."""
+    return resolve_checkbox_row(cb_obj.Parent, cb_obj)
 
 def get_checked_patients():
     """
@@ -350,44 +343,16 @@ def uncheck_patient(patient_item):
 
 
 def configure_checkbox_links(helper_column=17):
-    """Link each form checkbox to a hidden helper cell after saving a backup copy."""
+    """Compatibility entrypoint: align/deduplicate without resetting LinkedCell.
+
+    helper_column is retained for old callers; no helper column is written.
+    """
     _, wb = _find_target_workbook()
     if not wb:
         raise RuntimeError("找不到寄單工作簿。")
-    if bool(wb.ReadOnly):
-        raise RuntimeError("工作簿目前是唯讀，請先關閉其他占用者並以可編輯模式重新開啟。")
-
     ws = _find_target_sheet(wb)
-    col = int(helper_column)
-    if col <= int(ws.UsedRange.Columns.Count):
-        existing = ws.Range(ws.Cells(1, col), ws.Cells(150, col)).Value
-        if any(cell and cell[0] not in (None, '') for cell in existing):
-            raise RuntimeError("預定的輔助欄已有資料，已停止以避免覆蓋。")
-
     backup_dir = os.path.join(os.path.dirname(CONFIG_FILE), 'backup')
-    os.makedirs(backup_dir, exist_ok=True)
-    base, ext = os.path.splitext(str(wb.Name))
-    stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-    backup_path = os.path.join(backup_dir, f"{base}.checkbox-backup-{stamp}{ext}")
-    wb.SaveCopyAs(backup_path)
-
-    ws.Cells(1, col).Value = 'SMS_SELECTED'
-    seen_rows = set()
-    count = int(ws.CheckBoxes().Count)
-    for index in range(1, count + 1):
-        cb_obj = ws.CheckBoxes(index)
-        row = int(cb_obj.TopLeftCell.Row)
-        if row in seen_rows:
-            raise RuntimeError(f"第 {row} 列有重複核取方塊，未完成設定。")
-        seen_rows.add(row)
-        is_checked = cb_obj.Value in (1, 1.0, True, '1')
-        cell = ws.Cells(row, col)
-        cell.Value = bool(is_checked)
-        cb_obj.LinkedCell = str(cell.Address)
-        cb_obj.Value = 1 if is_checked else -4146
-    ws.Columns(col).Hidden = True
-    wb.Save()
-    return {'count': count, 'column': col, 'backup_path': backup_path}
+    return repair_checkboxes(wb, ws, backup_dir)
 
 def format_sms_message(template, patient_name):
     """
@@ -432,4 +397,5 @@ def get_moding_chrome_window():
         except Exception:
             pass
     return hwnd
+
 
