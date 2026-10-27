@@ -12,6 +12,7 @@ initializeApp()
 
 setGlobalOptions({
   region: 'us-central1',
+  invoker: 'public',
   memory: '256MiB',
   timeoutSeconds: 30,
   minInstances: 0,
@@ -593,4 +594,3 @@ export const updateGateway = onRequest(
     }
   },
 )
-
